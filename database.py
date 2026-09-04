@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS vouches (
     voucher_id     BIGINT NOT NULL,
     vouched_for_id BIGINT NOT NULL,
     reason         TEXT,
+    proof_url      TEXT,
     points         INTEGER NOT NULL DEFAULT 1,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(voucher_id, vouched_for_id)
@@ -86,6 +87,12 @@ async def init_db():
             if "created_at" not in cols:
                 await db.execute("ALTER TABLE scammer_entries ADD COLUMN created_at TIMESTAMP")
                 await db.execute("UPDATE scammer_entries SET created_at = last_updated WHERE created_at IS NULL")
+
+        # Check and add columns to vouches
+        async with db.execute("PRAGMA table_info(vouches)") as cur:
+            cols = [row[1] for row in await cur.fetchall()]
+            if "proof_url" not in cols:
+                await db.execute("ALTER TABLE vouches ADD COLUMN proof_url TEXT")
 
         await db.commit()
 
@@ -255,12 +262,12 @@ async def get_all_scammers() -> list[dict]:
 
 # ── Vouch Helpers ──────────────────────────────────────────────────────────────
 
-async def add_vouch(voucher_id: int, vouched_for_id: int, reason: str) -> bool:
+async def add_vouch(voucher_id: int, vouched_for_id: int, reason: str, proof_url: str = None) -> bool:
     try:
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
-                "INSERT INTO vouches (voucher_id, vouched_for_id, reason) VALUES (?, ?, ?)",
-                (voucher_id, vouched_for_id, reason),
+                "INSERT INTO vouches (voucher_id, vouched_for_id, reason, proof_url) VALUES (?, ?, ?, ?)",
+                (voucher_id, vouched_for_id, reason, proof_url),
             )
             await db.commit()
         return True
