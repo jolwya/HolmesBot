@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import database as db
+from utils import is_staff
 
 
 class Vouching(commands.Cog):
@@ -32,7 +33,6 @@ class Vouching(commands.Cog):
                 "❌ You cannot vouch for a bot.", ephemeral=True
             )
 
-        # Check that attachment exists
         if not proof or not proof.url:
             return await interaction.response.send_message(
                 "❌ Proof attachment is required to vouch for a member.", ephemeral=True
@@ -55,7 +55,6 @@ class Vouching(commands.Cog):
         embed.add_field(name="Proof", value=f"[Click to View Proof]({proof.url})", inline=False)
         embed.add_field(name=f"{user.display_name}'s Total Vouch Points", value=f"⭐ **{total}**", inline=True)
 
-        # Preview image if it's an image file
         if proof.content_type and proof.content_type.startswith("image/"):
             embed.set_image(url=proof.url)
 
@@ -88,7 +87,7 @@ class Vouching(commands.Cog):
             embed.description = "No vouches recorded yet."
         else:
             lines = []
-            for v in vouch_list[:15]:  # show up to 15 vouches
+            for v in vouch_list[:15]:
                 voucher = interaction.guild.get_member(v["voucher_id"]) if interaction.guild else None
                 voucher_str = voucher.mention if voucher else f"<@{v['voucher_id']}>"
                 reason_str = f" — *{v['reason']}*" if v.get("reason") else ""
@@ -103,23 +102,62 @@ class Vouching(commands.Cog):
 
     @discord.app_commands.command(
         name="remove_vouch",
-        description="Remove your vouch from a user.",
+        description="Remove a vouch (Staff can remove any member's vouch).",
     )
-    @discord.app_commands.describe(user="The user to remove your vouch from")
-    async def remove_vouch(self, interaction: discord.Interaction, user: discord.Member):
-        import aiosqlite
-        async with aiosqlite.connect("scambot.db") as conn:
-            result = await conn.execute(
-                "DELETE FROM vouches WHERE voucher_id = ? AND vouched_for_id = ?",
-                (interaction.user.id, user.id),
-            )
-            await conn.commit()
-            if result.rowcount == 0:
-                return await interaction.response.send_message(
-                    f"❌ You haven't vouched for {user.mention}.", ephemeral=True
+    @discord.app_commands.describe(
+        user="The user whose vouch should be removed",
+        voucher="Staff only: The member whose vouch should be deleted (leave blank for your own)"
+    )
+    async def remove_vouch(
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member,
+        voucher: discord.Member = None,
+    ):
+        await interaction.response.defer(ephemeral=True)
+        staff = await is_staff(interaction)
+
+        # If a voucher is specified and it's not the command caller, require staff permission
+        if voucher and voucher.id != interaction.user.id:
+            if not staff:
+                return await interaction.followup.send(
+                    "🔒 Only staff can remove other members' vouches.", ephemeral=True
                 )
-        await interaction.response.send_message(
-            f"✅ Your vouch for {user.mention} has been removed.", ephemeral=True
+            target_voucher_id = voucher.id
+            voucher_display = f"{voucher.mention}'s"
+        else:
+            target_voucher_id = interaction.user.id
+            voucher_display = "Your"
+
+        removed = await db.remove_vouch(vouched_for_id=user.id, voucher_id=target_voucher_id)
+        if not removed:
+            return await interaction.followup.send(
+                f"❌ No vouch found from {voucher_display} for {user.mention}.", ephemeral=True
+            )
+
+        total = await db.get_vouch_total(user.id)
+        await interaction.followup.send(
+            f"✅ Successfully removed {voucher_display} vouch for {user.mention}. (New total points: **{total}**)",
+            ephemeral=True
+        )
+
+    @discord.app_commands.command(
+        name="clear_all_vouches",
+        description="Wipe all vouches from a user (Staff only).",
+    )
+    @discord.app_commands.describe(user="The user whose vouches should be completely cleared")
+    async def clear_all_vouches(self, interaction: discord.Interaction, user: discord.Member):
+        await interaction.response.defer(ephemeral=True)
+        if not await is_staff(interaction):
+            return await interaction.followup.send("🔒 Staff only.", ephemeral=True)
+
+        count = await db.clear_all_vouches(user.id)
+        if count == 0:
+            return await interaction.followup.send(f"ℹ️ {user.mention} has no vouches to remove.", ephemeral=True)
+
+        await interaction.followup.send(
+            f"🧹 Successfully cleared all **{count}** vouch(es) from {user.mention}.",
+            ephemeral=True
         )
 
 

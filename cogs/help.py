@@ -22,8 +22,8 @@ class Help(commands.Cog):
             name="👤 Public Member Commands",
             value=(
                 "**`/lookup <query>`** - Search the database for a scammer by Roblox or Discord tag\n"
-                "**`/vouch <user> <reason>`** - Vouch for a trustworthy trader/member\n"
-                "**`/vouches [user]`** - View a user's total vouches and vouch history\n"
+                "**`/vouch <user> <reason> <proof>`** - Vouch for a trustworthy trader with image proof\n"
+                "**`/vouches [user]`** - View a user's total vouches, history, and proofs\n"
                 "**`/remove_vouch <user>`** - Remove a vouch you previously gave"
             ),
             inline=False
@@ -32,14 +32,16 @@ class Help(commands.Cog):
         # Staff Commands
         if staff_access:
             embed.add_field(
-                name="🛡️ Staff Ticket & Setup Commands",
+                name="🛡️ Staff Ticket & Moderation Commands",
                 value=(
                     "**`/setup_report_button`** - Post the 'Report a Scam' button in the current channel\n"
                     "**`/set_database_channel <#channel>`** - Set channel where approved reports are published\n"
                     "**`/set_archive_channel <#channel>`** - Set channel where closed ticket transcripts are saved\n"
                     "**`/add_staff_role <@role>`** - Authorize a role to review tickets & manage bot (Admin only)\n"
                     "**`/remove_staff_role <@role>`** - Remove staff authorization from a role (Admin only)\n"
-                    "**`/list_staff_roles`** - View all currently authorized staff roles"
+                    "**`/list_staff_roles`** - View all currently authorized staff roles\n"
+                    "**`/remove_vouch <user> [voucher]`** - Delete a specific fake or illegitimate vouch\n"
+                    "**`/clear_all_vouches <user>`** - Wipe all vouches from an account"
                 ),
                 inline=False
             )

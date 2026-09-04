@@ -286,3 +286,23 @@ async def get_vouch_total(user_id: int) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT COALESCE(SUM(points), 0) FROM vouches WHERE vouched_for_id = ?", (user_id,)) as cur:
             return (await cur.fetchone())[0]
+
+
+async def remove_vouch(vouched_for_id: int, voucher_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM vouches WHERE voucher_id = ? AND vouched_for_id = ?",
+            (voucher_id, vouched_for_id),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def clear_all_vouches(vouched_for_id: int) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM vouches WHERE vouched_for_id = ?",
+            (vouched_for_id,),
+        )
+        await db.commit()
+        return cursor.rowcount
