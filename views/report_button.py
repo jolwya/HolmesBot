@@ -16,9 +16,10 @@ class ReportButtonView(discord.ui.View):
     )
     async def report(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
-        category = guild.get_channel(TICKETS_CATEGORY_ID)
-        mod_role = guild.get_role(MOD_ROLE_ID)
+        if not guild:
+            return
 
+        category = guild.get_channel(TICKETS_CATEGORY_ID)
         if not category:
             return await interaction.response.send_message(
                 "⚠️ Ticket category not configured. Ask an admin to check `TICKETS_CATEGORY_ID`.",
@@ -28,13 +29,29 @@ class ReportButtonView(discord.ui.View):
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             interaction.user: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, attach_files=True
+                view_channel=True, send_messages=True, attach_files=True, embed_links=True
             ),
-        }
-        if mod_role:
-            overwrites[mod_role] = discord.PermissionOverwrite(
-                view_channel=True, send_messages=True
+            guild.me: discord.PermissionOverwrite(
+                view_channel=True, send_messages=True, manage_channels=True, attach_files=True, embed_links=True
             )
+        }
+
+        # Add overwrites for all configured staff roles
+        staff_role_ids = await db.get_staff_roles(guild.id)
+        for r_id in staff_role_ids:
+            role = guild.get_role(r_id)
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(
+                    view_channel=True, send_messages=True, attach_files=True, embed_links=True
+                )
+
+        # Fallback to MOD_ROLE_ID if no staff roles configured
+        if not staff_role_ids and MOD_ROLE_ID:
+            role = guild.get_role(MOD_ROLE_ID)
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(
+                    view_channel=True, send_messages=True, attach_files=True, embed_links=True
+                )
 
         ticket_channel = await guild.create_text_channel(
             name=f"report-{interaction.user.name}",
@@ -50,8 +67,10 @@ class ReportButtonView(discord.ui.View):
         embed = discord.Embed(
             title="📋 Scam Report Ticket",
             description=(
-                f"Hi {interaction.user.mention}! Click **Fill Out Template** below to submit your report.\n\n"
-                "You can also **attach screenshots or evidence** directly in this channel."
+                f"Hi {interaction.user.mention}! Welcome to your report ticket.\n\n"
+                "**Instructions:**\n"
+                "1. If you have screenshots or video proofs, **upload them directly into this channel**.\n"
+                "2. Click the **📝 Fill Out Template** button below to provide the scammer's info and reason."
             ),
             color=discord.Color.orange(),
         )

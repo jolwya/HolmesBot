@@ -16,11 +16,13 @@ class ReportModal(discord.ui.Modal, title="Scam Report"):
         label="Roblox Username",
         placeholder="e.g. BadActor123",
         max_length=100,
+        required=True,
     )
     discord_user = discord.ui.TextInput(
         label="Discord / Social Media Username",
-        placeholder="e.g. BadActor#1234",
+        placeholder="e.g. BadActor#1234 or @badactor",
         max_length=100,
+        required=True,
     )
     discord_id = discord.ui.TextInput(
         label="Discord User ID (Optional)",
@@ -28,10 +30,17 @@ class ReportModal(discord.ui.Modal, title="Scam Report"):
         required=False,
         max_length=100,
     )
+    reason = discord.ui.TextInput(
+        label="Reason for Report",
+        style=discord.TextStyle.paragraph,
+        placeholder="Describe the scam in detail (what happened, trade details, etc.)",
+        required=True,
+        max_length=1000,
+    )
     proof = discord.ui.TextInput(
         label="Proof (Link or upload in channel first)",
         style=discord.TextStyle.paragraph,
-        placeholder="Link, or leave empty if you attached images in the channel.",
+        placeholder="Paste links here, or leave blank if you attached files in this channel.",
         required=False,
         max_length=1000,
     )
@@ -42,29 +51,36 @@ class ReportModal(discord.ui.Modal, title="Scam Report"):
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        
+
         # Scrape channel for attachments
         attachments = []
-        async for msg in interaction.channel.history(limit=50):
-            for att in msg.attachments:
-                attachments.append(att.url)
+        if interaction.channel:
+            async for msg in interaction.channel.history(limit=50):
+                for att in msg.attachments:
+                    attachments.append(att.url)
 
         proof_text = self.proof.value.strip()
         if attachments:
-            proof_text += "\n\n**Attachments found in ticket:**\n" + "\n".join(attachments)
+            attachment_lines = "\n".join(attachments)
+            if proof_text:
+                proof_text = f"{proof_text}\n\n**Uploaded Attachments:**\n{attachment_lines}"
+            else:
+                proof_text = f"**Uploaded Attachments:**\n{attachment_lines}"
 
         if not proof_text.strip():
             return await interaction.followup.send(
-                "❌ You must either provide a link or upload an image in the channel first.",
+                "❌ Please provide proof: either paste links in the modal or upload images/videos into this channel first.",
                 ephemeral=True
             )
 
         report_id = await db.save_report(
             ticket_id=self.ticket_id,
-            roblox=self.roblox.value,
-            discord_user=self.discord_user.value,
-            discord_id=self.discord_id.value or "Not provided",
-            proof=self.proof.value,
+            reporter_id=interaction.user.id,
+            roblox=self.roblox.value.strip(),
+            discord_user=self.discord_user.value.strip(),
+            discord_id=self.discord_id.value.strip() or "Not provided",
+            reason=self.reason.value.strip(),
+            proof=proof_text,
         )
         await db.update_ticket_status(self.ticket_id, "awaiting_review")
 
@@ -72,18 +88,20 @@ class ReportModal(discord.ui.Modal, title="Scam Report"):
         from views.review_view import ReviewView
 
         embed = discord.Embed(
-            title="🔍 Scam Report — Pending Mod Review",
+            title="🔍 Scam Report — Pending Staff Review",
             color=discord.Color.yellow(),
         )
-        embed.add_field(name="Reported by", value=interaction.user.mention, inline=True)
-        embed.add_field(name="Roblox Username", value=self.roblox.value, inline=True)
-        embed.add_field(name="Discord Username", value=self.discord_user.value, inline=True)
-        embed.add_field(name="Discord ID", value=self.discord_id.value or "N/A", inline=True)
-        embed.add_field(name="Proof", value=self.proof.value, inline=False)
-        embed.set_footer(text=f"Report ID: {report_id} | Ticket ID: {self.ticket_id} — A mod will review and close this ticket.")
+        embed.add_field(name="Reported By", value=interaction.user.mention, inline=True)
+        embed.add_field(name="Roblox Username", value=self.roblox.value.strip(), inline=True)
+        embed.add_field(name="Discord Username", value=self.discord_user.value.strip(), inline=True)
+        embed.add_field(name="Discord ID", value=self.discord_id.value.strip() or "N/A", inline=True)
+        embed.add_field(name="Reason", value=self.reason.value.strip(), inline=False)
+        embed.add_field(name="Proof", value=proof_text[:1024], inline=False)
+        embed.set_footer(text=f"Report ID: {report_id} | Ticket ID: {self.ticket_id} — Staff will review below.")
 
-        await interaction.channel.send(
-            "📋 **Template submitted!** A moderator will review and approve or reject below.",
-            embed=embed,
-            view=ReviewView(report_id, self.ticket_id),
-        )
+        if interaction.channel:
+            await interaction.channel.send(
+                "📋 **Template submitted!** Staff will review and approve or reject below.",
+                embed=embed,
+                view=ReviewView(report_id, self.ticket_id),
+            )

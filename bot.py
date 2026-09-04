@@ -11,7 +11,6 @@ COGS = [
     "cogs.tickets",
     "cogs.database_posts",
     "cogs.vouching",
-    "cogs.webhooks",
     "cogs.help",
 ]
 
