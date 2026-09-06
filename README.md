@@ -1,5 +1,5 @@
 # HolmesBot
-Mafia [REMADE] scammer database bot 
+Mafia scammer database bot 
 includes:
 - report system
 - vouching system
