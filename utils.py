@@ -27,3 +27,16 @@ async def is_staff(interaction: discord.Interaction) -> bool:
         return True
 
     return False
+
+
+async def is_auction_manager(interaction: discord.Interaction) -> bool:
+    """Check if the user is an Auction Manager, staff member, or administrator."""
+    if await is_staff(interaction):
+        return True
+
+    if not interaction.guild:
+        return False
+
+    user_role_ids = [r.id for r in getattr(interaction.user, "roles", [])]
+    mgr_role_ids = await db.get_auction_manager_roles(interaction.guild.id)
+    return any(r_id in user_role_ids for r_id in mgr_role_ids)

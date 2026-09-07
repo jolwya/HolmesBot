@@ -11,6 +11,8 @@ COGS = [
     "cogs.tickets",
     "cogs.database_posts",
     "cogs.vouching",
+    "cogs.vouch_listener",
+    "cogs.auctions",
     "cogs.help",
 ]
 
@@ -27,11 +29,6 @@ async def on_ready():
 
     # Re-register persistent views so buttons survive restarts
     bot.add_view(ReportButtonView())
-
-    # Re-register all open review views by scanning the DB
-    # (We use a generic persistent view that decodes report/ticket IDs from custom_id)
-    # This works because our buttons have fixed custom_ids and we handle logic in callbacks
-    # For full per-report state, we'd need to store open review message IDs and restore them here.
 
     try:
         synced = await bot.tree.sync()
